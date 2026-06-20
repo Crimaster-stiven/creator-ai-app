@@ -42,7 +42,7 @@ export async function POST(request) {
           referenceHashtags: topic.referenceHashtags || [],
           whyWorks: topic.whyWorks || '',
         });
-      });
+      }
     }
 
     return NextResponse.json({ success: true, data: result });
