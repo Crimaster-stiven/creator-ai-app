@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { collectHotspots } from '@/lib/hotspots';
 
 export const runtime = 'nodejs';
+export const maxDuration = 30;
 
 export async function GET(request) {
   try {
