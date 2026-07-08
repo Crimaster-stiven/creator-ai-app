@@ -17,6 +17,12 @@ export default function RootLayout({ children }) {
       icon: (active) => active ? fireIconFilled() : fireIcon(),
     },
     {
+      key: 'analyze',
+      label: '分析',
+      path: '/analyze',
+      icon: (active) => active ? searchIconFilled() : searchIcon(),
+    },
+    {
       key: 'topics',
       label: '选题',
       path: '/topics',
@@ -107,6 +113,13 @@ function folderIcon() {
 }
 function folderIconFilled() {
   return <svg viewBox="0 0 24 24" fill="currentColor"><path d="M4 20h16a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.93a2 2 0 0 1-1.66-.9l-.82-1.2A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13c0 1.1.9 2 2 2Z"/></svg>;
+}
+
+function searchIcon() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>;
+}
+function searchIconFilled() {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>;
 }
 
 function checkIcon() {
