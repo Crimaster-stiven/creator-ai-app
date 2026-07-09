@@ -183,7 +183,7 @@ ${contextParts.join('\n')}
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { url, apiKey, transcript } = body;
+    const { url, apiKey, transcript, noteText } = body;
 
     if (!url) {
       return NextResponse.json({ success: false, error: '请提供小红书笔记链接' }, { status: 400 });
@@ -210,7 +210,8 @@ export async function POST(request) {
     } : null;
 
     // AI 分析（带完整文案 + 可选转录）
-    const analysis = await analyzeNote(note, fullDescription, transcript || null, apiKey);
+    // AI 分析（完整文案优先：RedFox > 用户粘贴 > 无）
+  const analysis = await analyzeNote(note, fullDescription || noteText || null, transcript || null, apiKey);
 
     return NextResponse.json({
       success: true,
