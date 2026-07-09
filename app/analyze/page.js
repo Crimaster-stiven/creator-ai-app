@@ -9,6 +9,8 @@ export default function VideoAnalyzePage() {
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState(null);
   const [error, setError] = useState(null);
+  const [transcript, setTranscript] = useState('');
+  const [showTranscriptInput, setShowTranscriptInput] = useState(false);
 
   const handleAnalyze = async () => {
     if (!url.trim()) return;
@@ -21,7 +23,11 @@ export default function VideoAnalyzePage() {
       const res = await fetch('/api/video-analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: url.trim(), apiKey }),
+        body: JSON.stringify({
+          url: url.trim(),
+          apiKey,
+          transcript: transcript || undefined,
+        }),
       });
       const data = await res.json();
       if (data.success) {
@@ -39,12 +45,20 @@ export default function VideoAnalyzePage() {
   const saveAsTopic = async () => {
     if (!result) return;
     try {
+      const parts = [
+        `来源：小红书视频分析`,
+        result.analysis.summary ? `摘要：${result.analysis.summary}` : '',
+        result.analysis.scriptHighlights ? `脚本亮点：${result.analysis.scriptHighlights}` : '',
+        result.analysis.yourAngle ? `借鉴角度：${result.analysis.yourAngle}` : '',
+        result.analysis.suggestedTitle ? `建议选题：${result.analysis.suggestedTitle}` : '',
+      ].filter(Boolean).join('\n');
+
       const res = await fetch('/api/topics', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           title: result.note.title,
-          description: `来源：小红书视频分析\n${result.analysis.summary || ''}`,
+          description: parts,
           sourceType: 'video-analysis',
           status: 'pending',
           angle: result.analysis.yourAngle || '',
@@ -57,12 +71,36 @@ export default function VideoAnalyzePage() {
     }
   };
 
+  const copyFullReport = () => {
+    const parts = ['【视频分析报告】', `标题：${result.note.title}`, ''];
+
+    if (result.note.fullDescription) {
+      parts.push('📝 完整文案：', result.note.fullDescription, '');
+    }
+
+    parts.push('📊 AI 分析：');
+    if (result.analysis.summary) parts.push(`摘要：${result.analysis.summary}`);
+    if (result.analysis.targetAudience) parts.push(`受众：${result.analysis.targetAudience}`);
+    if (result.analysis.hookAnalysis) parts.push(`钩子：${result.analysis.hookAnalysis}`);
+    if (result.analysis.contentStructure) parts.push(`结构：${result.analysis.contentStructure}`);
+    if (result.analysis.scriptHighlights) parts.push(`脚本亮点：${result.analysis.scriptHighlights}`);
+    if (result.analysis.whyPopular) parts.push(`\n🔥 ${result.analysis.whyPopular}`);
+    if (result.analysis.yourAngle) parts.push(`\n💡 ${result.analysis.yourAngle}`);
+    if (result.analysis.suggestedTitle) parts.push(`\n✍️ 建议选题：${result.analysis.suggestedTitle}`);
+
+    if (transcript) {
+      parts.push('\n🎙️ 视频口播转录：', transcript);
+    }
+
+    navigator.clipboard.writeText(parts.join('\n')).then(() => showToast('已复制完整报告'));
+  };
+
   return (
     <div className="page">
       <div className="page-header">
         <h1 className="text-2xl font-bold gradient-text">视频分析</h1>
         <p className="mt-1" style={{ color: 'var(--text-muted)', fontSize: 13 }}>
-          粘贴小红书笔记链接，AI 自动分析爆款公式
+          粘贴小红书笔记链接，AI 自动分析爆款公式 + 完整文案
         </p>
       </div>
 
@@ -89,9 +127,31 @@ export default function VideoAnalyzePage() {
             ) : '分析'}
           </button>
         </div>
-        <p className="mt-2" style={{ color: 'var(--text-muted)', fontSize: 11 }}>
-          支持小红书笔记链接（含 xsec_token）
-        </p>
+
+        {/* 转录文本输入（折叠） */}
+        <div className="mt-2">
+          <button
+            className="btn btn-ghost btn-xs"
+            onClick={() => setShowTranscriptInput(!showTranscriptInput)}
+            style={{ color: 'var(--text-muted)' }}
+          >
+            {showTranscriptInput ? '收起' : '📎 粘贴本地转录文本（可选）'}
+          </button>
+          {showTranscriptInput && (
+            <div className="mt-2">
+              <textarea
+                className="input w-full"
+                style={{ minHeight: 80, fontSize: 12, resize: 'vertical' }}
+                placeholder="用本地 Social Video Toolkit 转录后粘贴到这里，AI 分析会更准确..."
+                value={transcript}
+                onChange={(e) => setTranscript(e.target.value)}
+              />
+              <p style={{ color: 'var(--text-muted)', fontSize: 10, marginTop: 4 }}>
+                本地运行：social_video_toolkit.py analyze "链接" --language zh-CN
+              </p>
+            </div>
+          )}
+        </div>
       </div>
 
       {/* 错误提示 */}
@@ -112,6 +172,7 @@ export default function VideoAnalyzePage() {
             <div className="skeleton h-5 w-3/4" />
             <div className="skeleton h-3 w-1/2" />
             <div className="skeleton h-20 rounded-lg" />
+            <div className="skeleton h-32 rounded-lg" />
           </div>
         </div>
       )}
@@ -123,35 +184,59 @@ export default function VideoAnalyzePage() {
           <div className="card">
             <div className="flex gap-3">
               {result.note.coverImage && (
-                <div className="flex-shrink-0" style={{ width: 80, height: 106, borderRadius: 8, overflow: 'hidden', background: 'rgba(255,255,255,0.05)' }}>
-                  <img
-                    src={result.note.coverImage}
-                    alt="封面"
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                    onError={(e) => { e.target.style.display = 'none'; }}
-                  />
-                </div>
+                <a href={result.note.noteUrl} target="_blank" rel="noopener noreferrer"
+                   className="flex-shrink-0" style={{ width: 80, height: 106, borderRadius: 8, overflow: 'hidden', background: 'rgba(255,255,255,0.05)' }}>
+                  <img src={result.note.coverImage} alt="封面" style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                       onError={(e) => { e.target.style.display = 'none'; }} />
+                </a>
               )}
               <div className="flex-1 min-w-0">
                 <p className="font-bold" style={{ fontSize: 14, lineHeight: 1.4 }}>{result.note.title}</p>
-                <div className="flex items-center gap-2 mt-1">
+                <div className="flex items-center gap-2 mt-1 flex-wrap">
                   <span className="badge badge-pink text-xs">小红书</span>
-                  {result.note.duration && (
-                    <span className="badge badge-gray text-xs">⏱ {result.note.duration}</span>
+                  {result.note.duration && <span className="badge badge-gray text-xs">⏱ {result.note.duration}</span>}
+                  {result.note.interactionData?.likes && (
+                    <span className="badge badge-gray text-xs">❤️ {result.note.interactionData.likes}</span>
                   )}
                 </div>
-                {result.note.tags && result.note.tags.length > 0 && (
+                {result.note.tags?.length > 0 && (
                   <div className="flex gap-1 mt-1.5 flex-wrap">
-                    {result.note.tags.slice(0, 5).map((tag, i) => (
+                    {result.note.tags.map((tag, i) => (
                       <span key={i} style={{ color: 'var(--text-muted)', fontSize: 10 }}>#{tag}</span>
                     ))}
                   </div>
+                )}
+                {result.note.videoUrl && (
+                  <a href={result.note.videoUrl} target="_blank" rel="noopener noreferrer"
+                     className="btn btn-ghost btn-xs mt-1" style={{ color: 'var(--cyan)', fontSize: 10 }}>
+                    ▶ 查看原始视频
+                  </a>
                 )}
               </div>
             </div>
           </div>
 
-          {/* AI 分析结果 */}
+          {/* 📝 完整文案 */}
+          {result.note.fullDescription && (
+            <div className="card">
+              <h3 className="font-bold mb-2" style={{ color: 'var(--cyan)', fontSize: 13 }}>📝 完整文案</h3>
+              <div className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                {result.note.fullDescription}
+              </div>
+            </div>
+          )}
+
+          {/* 🎙️ 用户提供的转录文本 */}
+          {transcript && (
+            <div className="card" style={{ borderColor: 'rgba(0,200,150,0.2)' }}>
+              <h3 className="font-bold mb-2" style={{ color: 'var(--green)', fontSize: 13 }}>🎙️ 视频口播转录</h3>
+              <div className="text-sm leading-relaxed" style={{ color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', wordBreak: 'break-word', maxHeight: 300, overflowY: 'auto' }}>
+                {transcript}
+              </div>
+            </div>
+          )}
+
+          {/* 🔍 AI 分析报告 */}
           <div className="card">
             <h3 className="font-bold gradient-text mb-3">🔍 AI 分析报告</h3>
 
@@ -179,7 +264,14 @@ export default function VideoAnalyzePage() {
             {result.analysis.contentStructure && (
               <div className="mb-3">
                 <p className="font-bold mb-1" style={{ color: 'var(--orange)', fontSize: 12 }}>📋 内容结构</p>
-                <p style={{ color: 'var(--text-secondary)', fontSize: 13 }}>{result.analysis.contentStructure}</p>
+                <p style={{ color: 'var(--text-secondary)', fontSize: 13, whiteSpace: 'pre-wrap' }}>{result.analysis.contentStructure}</p>
+              </div>
+            )}
+
+            {result.analysis.scriptHighlights && (
+              <div className="mb-3">
+                <p className="font-bold mb-1" style={{ color: 'var(--green)', fontSize: 12 }}>🎬 脚本亮点</p>
+                <p style={{ color: 'var(--text-secondary)', fontSize: 13 }}>{result.analysis.scriptHighlights}</p>
               </div>
             )}
 
@@ -206,7 +298,7 @@ export default function VideoAnalyzePage() {
               </div>
             )}
 
-            {result.analysis.tags && result.analysis.tags.length > 0 && (
+            {result.analysis.tags?.length > 0 && (
               <div className="mb-3">
                 <p className="font-bold mb-1" style={{ color: 'var(--cyan)', fontSize: 12 }}>🏷️ 推荐标签</p>
                 <div className="flex gap-1.5 flex-wrap">
@@ -224,26 +316,17 @@ export default function VideoAnalyzePage() {
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
               保存到选题库
             </button>
-            <button
-              className="btn btn-secondary btn-sm flex-1"
-              onClick={() => {
-                const text = [
-                  `【视频分析】${result.note.title}`,
-                  '',
-                  `摘要：${result.analysis.summary || ''}`,
-                  `受众：${result.analysis.targetAudience || ''}`,
-                  `钩子：${result.analysis.hookAnalysis || ''}`,
-                  `结构：${result.analysis.contentStructure || ''}`,
-                  '',
-                  `🔥 ${result.analysis.whyPopular || ''}`,
-                  `💡 ${result.analysis.yourAngle || ''}`,
-                  `✍️ ${result.analysis.suggestedTitle || ''}`,
-                ].join('\n');
-                navigator.clipboard.writeText(text).then(() => showToast('已复制分析结果'));
-              }}
-            >
-              复制结果
+            <button className="btn btn-secondary btn-sm flex-1" onClick={copyFullReport}>
+              复制完整报告
             </button>
+          </div>
+
+          {/* 数据分析提示 */}
+          <div className="card" style={{ background: 'rgba(255,200,50,0.03)', borderColor: 'rgba(255,200,50,0.1)' }}>
+            <p style={{ color: 'var(--text-muted)', fontSize: 11, lineHeight: 1.6 }}>
+              💡 <strong>获取完整口播转录</strong>：在本地运行 Social Video Toolkit 提取视频语音转写，
+              粘贴到上方文本框后重新分析，AI 将基于完整脚本给出更精准的分析。
+            </p>
           </div>
         </div>
       )}
@@ -255,7 +338,7 @@ export default function VideoAnalyzePage() {
             <p style={{ fontSize: 32, marginBottom: 8 }}>🔗</p>
             <p style={{ color: 'var(--text-muted)', fontSize: 13 }}>粘贴小红书笔记链接开始分析</p>
             <p className="mt-2" style={{ color: 'var(--text-muted)', fontSize: 11 }}>
-              支持：标题提取 · 标签分析 · 爆款公式拆解 · 选题建议
+              支持 · 完整文案抓取 · 标签分析 · 爆款公式拆解 · 口播转录（可选）
             </p>
           </div>
         </div>
@@ -264,7 +347,7 @@ export default function VideoAnalyzePage() {
       {/* 底部 */}
       <div className="text-center mt-6">
         <p style={{ color: 'var(--text-muted)', fontSize: 11 }}>
-          数据来源：小红书公开页面 · AI 分析仅供参考
+          数据来源：小红书公开页面 · 文案通过 RedFox API 补充 · AI 分析仅供参考
         </p>
       </div>
     </div>
